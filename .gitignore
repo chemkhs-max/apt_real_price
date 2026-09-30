@@ -21,3 +21,6 @@ htmlcov/
 
 # Junction link
 skills/
+
+# Documentation & Specs
+docs/

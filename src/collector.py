@@ -3,7 +3,9 @@ from datetime import date
 import json
 import logging
 from pathlib import Path
+import random
 import sys
+import time
 import urllib.parse
 import xml.etree.ElementTree as ET
 
@@ -58,16 +60,17 @@ def fetch_sigungu_deals(
     api_key: str,
     sido: str = "",
     sigungu: str = "",
-    timeout: int = 10,
-    retries: int = 3
-) -> list[dict]:
+    timeout: int = 15,
+    retries: int = 5,
+    return_none_on_error: bool = False
+) -> list[dict] | None:
     """
     단일 시군구와 특정 연월(YYYYMM)의 실거래가 데이터를 공공데이터포털 API로부터 수집합니다.
-    일시적인 네트워크 장애 시 최대 retries 횟수만큼 재시도합니다.
+    일시적인 네트워크 장애 및 HTTP 429 감지 시 지수 백오프 기반 재시도합니다.
     """
     if not api_key:
         logger.error("API 키가 제공되지 않았습니다.")
-        return []
+        return None if return_none_on_error else []
 
     # 공공데이터포털 인증키 디코딩 (requests가 params 전달 시 인코딩하므로 이미 인코딩된 키의 이중인코딩 방지)
     decoded_key = urllib.parse.unquote(api_key)
@@ -87,6 +90,8 @@ def fetch_sigungu_deals(
 
     for attempt in range(1, retries + 1):
         try:
+            # 초당 순간 폭주 완화
+            time.sleep(0.1)
             resp = requests.get(API_URL, params=params, headers=headers, timeout=timeout)
             if resp.status_code == 200:
                 items = parse_xml_response(resp.text)
@@ -94,17 +99,23 @@ def fetch_sigungu_deals(
                     item["sido"] = sido
                     item["sigungu"] = sigungu
                 return items
+            elif resp.status_code == 429:
+                wait_time = 2.0 * attempt + random.uniform(0.1, 0.5)
+                logger.warning(f"[{lawd_cd}-{ymd}] Rate limit (429) 감지. {wait_time:.1f}초 대기 후 재시도...")
+                time.sleep(wait_time)
             else:
                 logger.warning(f"[{lawd_cd}-{ymd}] HTTP {resp.status_code} (시도 {attempt}/{retries})")
+                time.sleep(0.5)
         except Exception as e:
             logger.warning(f"[{lawd_cd}-{ymd}] 요청 오류: {e} (시도 {attempt}/{retries})")
+            time.sleep(0.5)
 
     logger.error(f"[{lawd_cd}-{ymd}] {retries}회 재시도 후 수집 실패")
-    return []
+    return None if return_none_on_error else []
 
 def collect_all_7days(
     api_key: str | None = None,
-    max_workers: int = 8,
+    max_workers: int = 3,
     today: date | None = None
 ) -> pd.DataFrame:
     """
@@ -134,10 +145,11 @@ def collect_all_7days(
             })
 
     total_tasks = len(tasks)
-    print(f"[*] 총 {total_tasks}개 수집 태스크를 {max_workers}개 스레드로 실행합니다...")
+    print(f"[*] 총 {total_tasks}개 시군구 태스크를 {max_workers}개 스레드로 수집합니다...")
 
     all_raw_deals = []
     success_count = 0
+    failed_tasks = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_task = {
@@ -147,7 +159,9 @@ def collect_all_7days(
                 t["ymd"],
                 api_key,
                 t["sido"],
-                t["sigungu"]
+                t["sigungu"],
+                retries=5,
+                return_none_on_error=True
             ): t for t in tasks
         }
 
@@ -155,14 +169,36 @@ def collect_all_7days(
             t = future_to_task[future]
             try:
                 deals = future.result()
-                all_raw_deals.extend(deals)
-                success_count += 1
+                if deals is not None:
+                    all_raw_deals.extend(deals)
+                    success_count += 1
+                else:
+                    failed_tasks.append(t)
             except Exception as e:
                 logger.error(f"태스크 오류 ({t['code']}): {e}")
+                failed_tasks.append(t)
 
             if i % 50 == 0 or i == total_tasks:
                 print(f"  - 진행률: {i}/{total_tasks} ({i*100//total_tasks}%) 완료 (현재 누적 {len(all_raw_deals)}건)")
 
+    # 1차 수집 시 실패한 태스크가 있다면 순차 재시도
+    if failed_tasks:
+        print(f"[*] 미완료 태스크 {len(failed_tasks)}건 순차 재시도 진행...")
+        for t in failed_tasks:
+            time.sleep(1.0)
+            deals = fetch_sigungu_deals(
+                t["code"],
+                t["ymd"],
+                api_key,
+                t["sido"],
+                t["sigungu"],
+                retries=5,
+                return_none_on_error=True
+            )
+            if deals is not None:
+                all_raw_deals.extend(deals)
+                success_count += 1
+                print(f"  - 재시도 성공: {t['sido']} {t['sigungu']} ({t['code']})")
     print(f"[*] 원본 데이터 수집 완료: 총 {len(all_raw_deals)}건 수집됨 (성공 태스크: {success_count}/{total_tasks})")
 
     # 데이터 정제 및 7일 필터링

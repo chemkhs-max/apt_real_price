@@ -18,3 +18,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Junction link
+skills/

@@ -2,8 +2,14 @@ import concurrent.futures
 from datetime import date
 import json
 import logging
+from pathlib import Path
+import sys
 import urllib.parse
 import xml.etree.ElementTree as ET
+
+# 프로젝트 루트 경로 추가 (CLI 직접 실행 지원)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pandas as pd
 import requests
 
@@ -11,6 +17,7 @@ from src.config import API_URL, LAWD_CD_PATH, get_api_key
 from src.processor import calculate_date_range, process_raw_deals, save_processed_data
 
 logger = logging.getLogger(__name__)
+
 
 def parse_xml_response(xml_text: str) -> list[dict]:
     """공공데이터 국토교통부 아파트 실거래가 XML 응답을 파싱하여 딕셔너리 리스트로 변환합니다."""

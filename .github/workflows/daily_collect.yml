@@ -1,0 +1,47 @@
+name: Collect Real Price Data
+
+on:
+  workflow_dispatch:
+  # 정기 실행(매일 KST 오전 06:00 = UTC 21:00)을 원하실 경우 아래 schedule 주석을 해제하세요.
+  # schedule:
+  #   - cron: '0 21 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Real Price Collector
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+        run: uv run python src/collector.py
+
+      - name: Commit and push if data changed
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/recent_7days.parquet data/metadata.json
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "chore: auto-update real price data [skip ci] ($(date +'%Y-%m-%d'))"
+            git push
+          fi

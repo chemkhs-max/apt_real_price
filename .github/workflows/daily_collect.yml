@@ -2,9 +2,9 @@ name: Collect Real Price Data
 
 on:
   workflow_dispatch:
-  # 정기 실행(매일 KST 오전 06:00 = UTC 21:00)을 원하실 경우 아래 schedule 주석을 해제하세요.
-  # schedule:
-  #   - cron: '0 21 * * *'
+  schedule:
+    # 매일 KST 오전 06:00 (UTC 21:00) 자동 정기 수집
+    - cron: '0 21 * * *'
 
 permissions:
   contents: write

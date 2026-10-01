@@ -18,8 +18,13 @@
      - `🏆 최고가 TOP 랭킹`: 최근 7일 최고가 상위 20개 단지 순위표
      - `🗺️ 지역별 지도 시각화`: 시군구별 거래량 대비 평균 거래가 분포 차트
      - `📋 실거래 상세 내역`: 정렬 가능 테이블 및 CSV 다운로드 기능
-3. **완전 무료 자동화 및 배포**:
-   - **GitHub Actions**: 웹에서 버튼 한 번으로 데이터 수집 및 자동 커밋 (`workflow_dispatch`)
+3. **일자별 상세 분석 & Gemini AI 애널리스트 리포트 (신규)**:
+   - `pages/1_📅_일자별_거래분석.py` 전용 페이지 제공
+   - **Gemini 3.8 Flash** 기반 15년 차 부동산 수석 애널리스트 페르소나 리포트 생성
+   - **SQLite 영구 캐싱**: 최초 1회 생성 후 `data/daily_summaries.db`에 자동 저장되어 이후 0.1초 내 즉시 로드
+   - 당일 거래내역 필터링, 정렬 및 CSV 다운로드 지원
+4. **완전 무료 자동화 및 배포**:
+   - **GitHub Actions**: 웹에서 버튼 한 번으로 데이터 수집 및 자동 커밋 (`workflow_dispatch`), 매일 아침 6시 자동 수집 스케줄러 내장
    - **Streamlit Community Cloud**: GitHub 저장소와 연동하여 커밋 시 자동 새로고침 배포
 
 ---
@@ -34,10 +39,12 @@ uv sync
 ```
 
 ### 2. API 키 설정 (선택 사항)
-공공데이터포털에서 발급받은 일반 인증키(Encoding/Decoding)를 `.env` 파일에 입력합니다:
+공공데이터포털 및 Google AI Studio에서 발급받은 API 키를 `.env` 파일에 입력합니다:
 ```bash
 cp .env.example .env
-# .env 파일을 열고 DATA_GO_KR_API_KEY=발급받은_키 입력
+# .env 파일을 열고 아래 키를 입력합니다:
+# DATA_GO_KR_API_KEY=공공데이터포털_인증키
+# GEMINI_API_KEY=구글_AI_Studio_발급_API키
 ```
 
 > **API 키 없이 바로 대시보드를 테스트하고 싶은 경우**:

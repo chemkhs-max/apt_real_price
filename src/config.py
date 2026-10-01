@@ -13,6 +13,7 @@ DATA_DIR = BASE_DIR / "data"
 LAWD_CD_PATH = DATA_DIR / "lawd_cd.json"
 DATA_FILE_PATH = DATA_DIR / "recent_7days.parquet"
 METADATA_PATH = DATA_DIR / "metadata.json"
+DAILY_SUMMARY_DB_PATH = DATA_DIR / "daily_summaries.db"
 
 # 공공데이터포털 국토교통부 아파트 매매 실거래가 API 엔드포인트
 API_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade"
@@ -21,4 +22,10 @@ API_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcApt
 def get_api_key() -> str:
     """환경변수에서 공공데이터포털 API 인증키를 조회합니다."""
     key = os.getenv("DATA_GO_KR_API_KEY", "").strip()
+    return key
+
+
+def get_gemini_api_key() -> str:
+    """환경변수에서 Gemini API 인증키를 조회합니다."""
+    key = os.getenv("GEMINI_API_KEY", "").strip()
     return key

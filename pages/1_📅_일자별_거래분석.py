@@ -119,11 +119,11 @@ def main():
             with st.spinner("🤖 Gemini AI가 당일 실거래 데이터를 심층 분석하여 부동산 애널리스트 리포트를 생성하고 있습니다..."):
                 stats_text = build_daily_stats_summary(day_df, selected_date)
                 try:
-                    report = generate_analyst_report(stats_text, api_key=api_key, model=DEFAULT_GEMINI_MODEL)
+                    report = generate_analyst_report(stats_text, api_key=api_key)
                     repo.save_summary(
                         deal_date=selected_date,
                         summary_content=report,
-                        model_name=DEFAULT_GEMINI_MODEL,
+                        model_name="Gemini Flash",
                         deal_count=total_deals,
                     )
                     st.success("✅ AI 애널리스트 분석이 성공적으로 생성되어 SQLite DB에 저장되었습니다!")

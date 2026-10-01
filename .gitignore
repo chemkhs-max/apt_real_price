@@ -10,6 +10,10 @@ __pycache__/
 .env.local
 .streamlit/secrets.toml
 
+# Database & Cache
+*.db
+*.sqlite3
+
 # IDE & Editor
 .vscode/
 .idea/

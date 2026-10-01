@@ -7,7 +7,8 @@ from src.config import get_gemini_api_key
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash"]
 
 
 def build_daily_stats_summary(daily_df: pd.DataFrame, deal_date: str) -> str:
@@ -102,21 +103,33 @@ def generate_analyst_report(
         "(실수요자와 투자자 관점에서 주목할 시사점 및 단기 체크포인트 2~3가지)"
     )
 
-    try:
-        client = genai.Client(api_key=api_key)
-        prompt = f"다음은 분석할 당일 아파트 실거래 통계 데이터입니다:\n\n{stats_summary}\n\n위 데이터를 바탕으로 부동산 애널리스트 리포트를 작성해 주세요."
+    client = genai.Client(api_key=api_key)
+    prompt = f"다음은 분석할 당일 아파트 실거래 통계 데이터입니다:\n\n{stats_summary}\n\n위 데이터를 바탕으로 부동산 애널리스트 리포트를 작성해 주세요."
 
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config={
-                "system_instruction": system_instruction,
-                "temperature": 0.3,
-            },
-        )
-        if response and response.text:
-            return response.text.strip()
-        return "⚠️ Gemini API로부터 생성된 분석 결과가 비어있습니다."
-    except Exception as e:
-        logger.error(f"Gemini API 호출 중 오류 발생: {e}")
-        raise RuntimeError(f"Gemini API 호출 실패: {e}") from e
+    models_to_try = [model] + [m for m in FALLBACK_MODELS if m != model]
+    last_error = None
+
+    for attempt_model in models_to_try:
+        try:
+            logger.info(f"Gemini API 호출 시도 (모델: {attempt_model})...")
+            response = client.models.generate_content(
+                model=attempt_model,
+                contents=prompt,
+                config={
+                    "system_instruction": system_instruction,
+                    "temperature": 0.3,
+                },
+            )
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            last_error = e
+            err_str = str(e)
+            logger.warning(f"모델 [{attempt_model}] 호출 실패: {err_str[:150]}")
+            # 503이나 일시적 과부하인 경우 다음 fallback 모델로 전환 시도
+            if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str:
+                continue
+            # 그 외의 치명적 오류(인증 실패 등)는 즉시 raise
+            raise RuntimeError(f"Gemini API 호출 실패: {e}") from e
+
+    raise RuntimeError(f"모든 Gemini 모델 호출 실패: {last_error}") from last_error
